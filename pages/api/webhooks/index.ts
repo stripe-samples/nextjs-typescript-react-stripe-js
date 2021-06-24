@@ -1,4 +1,3 @@
-import { buffer } from 'micro';
 import Cors from 'micro-cors';
 import { NextApiRequest, NextApiResponse } from 'next';
 
@@ -21,6 +20,22 @@ const cors = Cors({
   allowMethods: ['POST', 'HEAD'],
 });
 
+const buffer: (req: NextApiRequest) => Promise<Buffer> = (req) => {
+  return new Promise((resolve, reject) => {
+    const body: Array<Buffer> = [];
+    req
+      .on('data', (chunk) => {
+        body.push(chunk);
+      })
+      .on('end', () => {
+        resolve(Buffer.concat(body));
+      })
+      .on('error', (err) => {
+        reject(err);
+      });
+  });
+};
+
 const webhookHandler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'POST') {
     const buf = await buffer(req);
@@ -29,11 +44,7 @@ const webhookHandler = async (req: NextApiRequest, res: NextApiResponse) => {
     let event: Stripe.Event;
 
     try {
-      event = stripe.webhooks.constructEvent(
-        buf.toString(),
-        sig,
-        webhookSecret
-      );
+      event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
     } catch (err) {
       // On error, log and return the error message.
       console.log(`❌ Error message: ${err.message}`);
